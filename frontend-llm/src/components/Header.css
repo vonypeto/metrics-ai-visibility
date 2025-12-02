@@ -1,0 +1,118 @@
+.app-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.health-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.health-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-indicator.ok {
+  background-color: #4caf50;
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.8);
+}
+
+.status-indicator.error {
+  background-color: #f44336;
+  box-shadow: 0 0 8px rgba(244, 67, 54, 0.8);
+}
+
+.health-panel {
+  max-width: 1400px;
+  margin: 20px auto 0;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  padding: 20px;
+  color: #333;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.health-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.health-section h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: #667eea;
+  border-bottom: 2px solid #667eea;
+  padding-bottom: 4px;
+}
+
+.health-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+.health-item span:first-child {
+  color: #666;
+  font-weight: 500;
+}
+
+.health-item span:last-child {
+  color: #333;
+}
+
+.status-ok {
+  color: #4caf50 !important;
+  font-weight: 600;
+}
+
+.status-error {
+  color: #f44336 !important;
+  font-weight: 600;
+}
+
+.status-warning {
+  color: #ff9800 !important;
+  font-weight: 600;
+}

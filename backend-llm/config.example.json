@@ -1,0 +1,60 @@
+{
+  "description": "Example configuration for LLM brand visibility tracking",
+  "runs": [
+    {
+      "name": "Q4 2025 Payment Processors",
+      "prompts": [
+        "What's the best payment processor for a SaaS startup?",
+        "Which payment gateway has the lowest fees?",
+        "Recommend a payment platform for international sales",
+        "What payment processor integrates well with subscription billing?",
+        "Best payment solution for marketplaces?"
+      ],
+      "brands": [
+        "Stripe",
+        "Square",
+        "PayPal",
+        "Braintree",
+        "Adyen",
+        "Checkout.com"
+      ],
+      "models": [
+        { "model": "gpt-4o-mini", "provider": "openai" },
+        { "model": "gpt-3.5-turbo", "provider": "openai" },
+        { "model": "claude-3-5-haiku-20241022", "provider": "anthropic" }
+      ],
+      "config": {
+        "concurrencyLimit": 5,
+        "retryAttempts": 3,
+        "timeout": 30000
+      }
+    },
+    {
+      "name": "CRM Solutions Analysis",
+      "prompts": [
+        "What CRM should I use for my small business?",
+        "Best CRM for real estate agencies?",
+        "Which CRM has the best mobile app?",
+        "Recommend a CRM with good email integration",
+        "What's the most affordable CRM for startups?"
+      ],
+      "brands": [
+        "Salesforce",
+        "HubSpot",
+        "Zoho CRM",
+        "Pipedrive",
+        "Monday.com",
+        "Copper"
+      ],
+      "models": [
+        { "model": "gpt-4o-mini", "provider": "openai" },
+        { "model": "claude-3-5-sonnet-20241022", "provider": "anthropic" }
+      ],
+      "config": {
+        "concurrencyLimit": 3,
+        "retryAttempts": 2,
+        "timeout": 25000
+      }
+    }
+  ]
+}
