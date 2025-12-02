@@ -169,32 +169,3 @@ docker compose down -v
 docker system prune -a
 docker compose up -d --build
 ```
-
-## Production Considerations
-
-1. **Change default credentials** in docker-compose.yml
-2. **Use Docker secrets** for API keys
-3. **Set up reverse proxy** (nginx/traefik) for SSL
-4. **Configure backups** for MongoDB volume
-5. **Monitor resource usage** and adjust limits
-6. **Use specific image tags** instead of `latest`
-7. **Enable log rotation** to prevent disk fill
-
-## Network Architecture
-
-All services run on the `llm-network` bridge network, allowing:
-
-- Internal DNS resolution (e.g., `mongodb:27017`)
-- Service isolation from host network
-- Efficient inter-container communication
-
-## Health Checks
-
-All critical services have health checks:
-
-- **Backend:** HTTP endpoint check every 30s
-- **Frontend:** Nginx availability check
-- **MongoDB:** Database ping every 10s
-- **Redis:** Redis CLI ping every 10s
-
-Services wait for dependencies to be healthy before starting.

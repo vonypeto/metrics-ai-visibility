@@ -16,44 +16,9 @@ import type {
   IPrompt,
   IBrand,
   IResponse,
+  RunSummary,
 } from '../types/llm-visibility.interfaces';
-
-export interface CreateRunDto {
-  prompts: string[];
-  brands: string[];
-  models: { model: string; provider: string }[];
-  notes?: string;
-  idempotencyKey?: string;
-  config?: {
-    concurrencyLimit?: number;
-    retryAttempts?: number;
-    timeout?: number;
-    rateLimitPerSecond?: number;
-    enableCircuitBreaker?: boolean;
-  };
-}
-
-export interface RunSummary {
-  run: IRun;
-  brandMetrics: Array<{
-    brandName: string;
-    totalMentions: number;
-    mentionRate: number;
-    avgPosition?: number;
-    byPrompt: Array<{
-      promptText: string;
-      mentioned: boolean;
-      mentionCount: number;
-      models: string[];
-    }>;
-  }>;
-  promptMetrics: Array<{
-    promptText: string;
-    totalResponses: number;
-    successfulResponses: number;
-    brandsMetioned: string[];
-  }>;
-}
+import { CreateRunRequest, RunChatResponse } from '../types/llm-visibility.dto';
 
 @Injectable()
 export class LLMVisibilityService {
@@ -74,7 +39,7 @@ export class LLMVisibilityService {
   /**
    * Generate a content hash for idempotency based on prompts, brands, and models
    */
-  private generateContentHash(dto: CreateRunDto): string {
+  private generateContentHash(dto: CreateRunRequest): string {
     const content = {
       prompts: [...dto.prompts].sort(),
       brands: [...dto.brands].sort(),
@@ -88,7 +53,9 @@ export class LLMVisibilityService {
       .digest('hex');
   }
 
-  async createRun(dto: CreateRunDto): Promise<{ run: IRun; isNew: boolean }> {
+  async createRun(
+    dto: CreateRunRequest,
+  ): Promise<{ run: IRun; isNew: boolean }> {
     const existingRun = await this.checkExistingRun(dto);
     if (existingRun) {
       return { run: existingRun, isNew: false };
@@ -131,7 +98,7 @@ export class LLMVisibilityService {
     return { run, isNew: true };
   }
 
-  private async checkExistingRun(dto: CreateRunDto): Promise<IRun | null> {
+  private async checkExistingRun(dto: CreateRunRequest): Promise<IRun | null> {
     if (dto.idempotencyKey) {
       const existing = await this.runRepository.findByIdempotencyKey(
         dto.idempotencyKey,
@@ -577,33 +544,7 @@ export class LLMVisibilityService {
     return this.runRepository.findById(new mongoose.Types.ObjectId(runId));
   }
 
-  async getRunChat(runId: string): Promise<{
-    run: IRun;
-    conversations: Array<{
-      prompt: string;
-      promptId: string;
-      responses: Array<{
-        model: string;
-        provider: string;
-        text: string;
-        latencyMs: number;
-        tokenUsage?: {
-          promptTokens?: number;
-          completionTokens?: number;
-          totalTokens?: number;
-        };
-        status: string;
-        errorMessage?: string;
-        timestamp: Date;
-        brandMentions?: Array<{
-          brandName: string;
-          mentioned: boolean;
-          mentionCount: number;
-          context?: string;
-        }>;
-      }>;
-    }>;
-  }> {
+  async getRunChat(runId: string): Promise<RunChatResponse> {
     const run = await this.runRepository.findById(
       new mongoose.Types.ObjectId(runId),
     );
