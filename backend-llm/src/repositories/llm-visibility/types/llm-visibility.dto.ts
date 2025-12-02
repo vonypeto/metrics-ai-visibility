@@ -1,5 +1,27 @@
 import { IRun } from './llm-visibility.interfaces';
 
+export interface RunSummaryResponse {
+  run: IRun;
+  brandMetrics: Array<{
+    brandName: string;
+    totalMentions: number;
+    mentionRate: number;
+    avgPosition?: number;
+    byPrompt: Array<{
+      promptText: string;
+      mentioned: boolean;
+      mentionCount: number;
+      models: string[];
+    }>;
+  }>;
+  promptMetrics: Array<{
+    promptText: string;
+    totalResponses: number;
+    successfulResponses: number;
+    brandsMetioned: string[];
+  }>;
+}
+
 export interface CreateRunRequest {
   prompts: string[];
   brands: string[];

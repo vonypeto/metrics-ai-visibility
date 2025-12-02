@@ -16,9 +16,12 @@ import type {
   IPrompt,
   IBrand,
   IResponse,
-  RunSummary,
 } from '../types/llm-visibility.interfaces';
-import { CreateRunRequest, RunChatResponse } from '../types/llm-visibility.dto';
+import {
+  CreateRunRequest,
+  RunChatResponse,
+  RunSummaryResponse,
+} from '../types/llm-visibility.dto';
 
 @Injectable()
 export class LLMVisibilityService {
@@ -433,7 +436,7 @@ export class LLMVisibilityService {
     );
   }
 
-  async getRunSummary(runId: string): Promise<RunSummary> {
+  async getRunSummary(runId: string): Promise<RunSummaryResponse> {
     const run = await this.runRepository.findById(
       new mongoose.Types.ObjectId(runId),
     );

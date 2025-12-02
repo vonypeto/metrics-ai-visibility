@@ -9,14 +9,14 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import {
-  LLMVisibilityService,
-  CreateRunDto,
-  RunSummary,
-} from '../repositories/llm-visibility/services/llm-visibility.service';
-import type { IRun } from '../repositories/llm-visibility/types/llm-visibility.interfaces';
+import { LLMVisibilityService } from '../repositories/llm-visibility/services/llm-visibility.service';
+import type { IRun as IRunResponse } from '../repositories/llm-visibility/types/llm-visibility.interfaces';
 import { RedisService } from '../libs/redis-module/redis.service';
 import { RateLimiterService } from '../libs/rate-limiter-module';
+import {
+  CreateRunRequest,
+  RunSummaryResponse,
+} from 'src/repositories/llm-visibility/types/llm-visibility.dto';
 
 @Controller()
 export class LLMVisibilityController {
@@ -29,7 +29,7 @@ export class LLMVisibilityController {
   ) {}
 
   @Post('runs')
-  async createRun(@Body() dto: CreateRunDto): Promise<any> {
+  async createRun(@Body() dto: CreateRunRequest): Promise<any> {
     this.logger.log(
       `Creating run with ${dto.prompts?.length || 0} prompts, ${dto.brands?.length || 0} brands, ${dto.models?.length || 0} models`,
     );
@@ -72,7 +72,12 @@ export class LLMVisibilityController {
   async listRuns(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
-  ): Promise<{ data: IRun[]; total: number; page: number; limit: number }> {
+  ): Promise<{
+    data: IRunResponse[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 10;
 
@@ -92,7 +97,7 @@ export class LLMVisibilityController {
   }
 
   @Get('runs/:id')
-  async getRun(@Param('id') id: string): Promise<IRun> {
+  async getRun(@Param('id') id: string): Promise<IRunResponse> {
     this.logger.debug(`Fetching run: ${id}`);
 
     const run = await this.llmVisibilityService.getRunById(id);
@@ -106,7 +111,7 @@ export class LLMVisibilityController {
   }
 
   @Get('runs/:id/summary')
-  async getRunSummary(@Param('id') id: string): Promise<RunSummary> {
+  async getRunSummary(@Param('id') id: string): Promise<RunSummaryResponse> {
     this.logger.debug(`Fetching summary for run: ${id}`);
 
     try {
