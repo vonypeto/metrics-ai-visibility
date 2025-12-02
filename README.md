@@ -1,83 +1,96 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# LLM Brand Visibility Tracking Service
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+**A production-ready NestJS service for tracking brand mentions across multiple LLM providers (OpenAI, Anthropic).**
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+This is a full-stack solution with:
 
-# Backend LLM - Brand Visibility Tracking Service
-
-A scalable NestJS service for tracking brand mentions across multiple LLM providers (OpenAI, Anthropic). Built to analyze how different AI models respond to prompts and which brands they mention.
+- ✅ **Backend API**: NestJS + MongoDB with circuit breaker, rate limiting, and comprehensive error handling
+- ✅ **Frontend Dashboard**: React + Material-UI for real-time monitoring
+- ✅ **CLI Tool**: Command-line interface for automation
+- ✅ **Production Features**: Idempotency, retry logic, metrics tracking, and scalability patterns
 
 ## 🎯 What This Does
 
-This service allows you to:
+Track how AI models mention brands in their responses:
 
-- Submit batches of prompts to multiple LLM models
-- Track which brands are mentioned in AI-generated responses
-- Measure brand visibility across different prompts and models
-- Get aggregated metrics on mention rates, positions, and frequency
+- **Batch Processing**: Submit 100s-1000s of prompts to multiple LLM models simultaneously
+- **Brand Analysis**: Detect which brands appear, where, and how often
+- **Multi-Provider**: OpenAI and Anthropic support with extensible architecture
+- **Metrics & Insights**: Mention rates, positions, frequency analysis across prompt/model combinations
 
-**Perfect for:** Competitive intelligence, brand monitoring, SEO for AI, and understanding LLM behaviors.
+**Use Cases:** Competitive intelligence, brand monitoring, SEO for AI, LLM behavior analysis.
 
-## 🚀 Quick Start
+## 🚀 Quick Start (5 Minutes)
 
-See **[QUICKSTART.md](./QUICKSTART.md)** for a 5-minute setup guide.
-
-**TL;DR:**
+### Option 1: Docker (Recommended - Fastest)
 
 ```bash
-# 1. Install
-pnpm install
+# 1. Clone and navigate to project
+cd project
 
-# 2. Configure .env with API keys
-OPENAI_API_KEY=sk-your-key
-ANTHROPIC_API_KEY=sk-ant-your-key
+# 2. Set up environment with API keys
+cp .env.example .env
+# Edit .env and add your API keys:
+# OPENAI_API_KEY=sk-your-key
+# ANTHROPIC_API_KEY=sk-ant-your-key
 
-# 3. Start server
-pnpm run start:dev
+# 3. Start everything with Docker
+docker compose up -d --build
 
-# 4. Create a run (in another terminal)
+# 4. Access the services
+# Frontend: http://localhost:3001
+# Backend API: http://localhost:3000
+# RedisInsight: http://localhost:5540
+
+# 5. Test it out
+cd backend-llm
 node cli.js create-run --config config.example.json --run 0
-
-# 5. Watch progress
 node cli.js watch <run-id>
 ```
 
-## 📚 Documentation
+**Docker includes:**
 
-- **[SCALABILITY.md](./SCALABILITY.md)** - **Comprehensive scalability & reliability guide**:
+- ✅ Backend API (NestJS)
+- ✅ Frontend Dashboard (React)
+- ✅ MongoDB (with persistent storage)
+- ✅ Redis (with RedisInsight GUI)
+- ✅ Health checks & automatic restarts
+- ✅ Optimized production builds
 
-  - Current implementation details (rate limiting, circuit breaker, idempotency)
-  - Scaling to 100k+ prompts/day architecture
-  - Production deployment strategies
-  - Cost analysis and optimization
+See **[DOCKER_SETUP.md](./DOCKER_SETUP.md)** for detailed Docker commands and troubleshooting.
 
-- **[LLM_VISIBILITY_README.md](./LLM_VISIBILITY_README.md)** - Full documentation including:
+### Option 2: Manual Setup (Development)
 
-  - Complete API reference
-  - Architecture overview
-  - Scalability analysis (100k prompts/day)
-  - Production considerations
-  - Cost estimations
+```bash
+# 1. Install dependencies
+pnpm install
 
-- **[QUICKSTART.md](./QUICKSTART.md)** - Get started in 5 minutes
+# 2. Start MongoDB & Redis
+docker compose up -d mongodb redis
+
+# 3. Configure environment
+cd backend-llm
+cp .env.example .env
+# Add your API keys & connection strings to .env
+
+# 4. Start backend (development mode)
+pnpm run start:dev
+
+# 5. (Optional) Start frontend dashboard
+cd ../frontend-llm
+npm install && npm start
+# Visit http://localhost:3001
+
+# 6. Test it out (in another terminal)
+cd backend-llm
+node cli.js create-run --config config.example.json --run 0
+node cli.js create-run --config config.scalability.json --run 2
+node cli.js watch <run-id>
+```
+
+**That's it!** The system will process prompts, call LLMs, analyze brand mentions, and show results.
+
+See **[QUICKSTART.md](./QUICKSTART.md)** for detailed setup including troubleshooting.
 
 ## 🔑 Key Features
 
@@ -111,33 +124,67 @@ node cli.js watch <run-id>
 - [x] **Abort controllers** (proper timeout handling)
 - [x] **Metrics tracking** (latency, tokens, cost estimation)
 
-**See [SCALABILITY.md](./SCALABILITY.md) for detailed architecture and 100k prompts/day design.**
+## 🏗️ Architecture & Design Decisions
 
-## 🏗️ Architecture
+### Clear Separation of Concerns
 
 ```
-Client Request
-    ↓
-REST API / CLI
-    ↓
-LLM Visibility Service
-    ├─→ Run Management
-    ├─→ LLM Provider Service (OpenAI, Anthropic)
-    ├─→ Brand Mention Analyzer
-    └─→ Metrics Aggregator
-    ↓
-MongoDB (Runs, Prompts, Brands, Responses, Mentions)
+┌─────────────────────────────────────────────────────────────┐
+│                     Controller Layer                        │
+│  (HTTP/REST API, request validation, response formatting)   │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────────┐
+│                   Service Layer                             │
+│  • LLMVisibilityService: Orchestration & business logic     │
+│  • LLMProviderService: LLM client abstraction               │
+│  • Brand analysis & metrics aggregation                     │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────────┐
+│                 Repository Layer                            │
+│  • Abstract base repository (CRUD operations)               │
+│  • Type-safe MongoDB access with Mongoose                   │
+│  • Schema definitions & data modeling                       │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────────┐
+│              Infrastructure Layer                           │
+│  • Circuit Breaker (failure isolation)                      │
+│  • Rate Limiter (token bucket algorithm)                    │
+│  • Redis (distributed state)                                │
+│  • Configuration management                                 │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Database Schema
+### Key Design Principles
 
-- **runs**: Execution batches with status and configuration
-- **prompts**: Unique prompts (de-duplicated)
-- **brands**: Brand names to track
-- **responses**: LLM responses with metadata
-- **brand_mentions**: Mention analysis results
+**1. Provider Abstraction**
 
-## 📊 Example Usage
+- `LLMProviderService` wraps OpenAI/Anthropic SDKs with unified interface
+- Easy to add new providers (Gemini, Mistral, etc.) without changing business logic
+- Consistent error handling and retry logic across providers
+
+**2. Async by Default**
+
+- Non-blocking API: `/runs` endpoint returns immediately with run ID
+- Background processing with configurable concurrency (p-limit)
+- Client polls for status or uses CLI watch mode
+
+**3. Failure Resilience**
+
+- **Circuit Breaker**: Opens after threshold failures, prevents cascading issues
+- **Exponential Backoff with Jitter**: Avoids thundering herd on retries
+- **Partial Success Tracking**: Individual prompt failures don't crash entire run
+- **Timeouts**: AbortController for clean timeout handling
+
+**4. Data Modeling**
+
+- Normalized schema: Prompts/Brands de-duplicated (idempotent inserts)
+- Rich metadata: Latency, token usage, cost estimation per response
+- Run-level status tracking: `pending` → `processing` → `completed`/`failed`
+
+## 📊 API Examples
 
 ### Create a Run
 
@@ -153,14 +200,55 @@ curl -X POST http://localhost:3000/runs \
     "models": [
       { "model": "gpt-4o-mini", "provider": "openai" },
       { "model": "claude-3-5-haiku-20241022", "provider": "anthropic" }
-    ]
+    ],
+    "idempotencyKey": "optional-dedup-key",
+    "config": {
+      "concurrencyLimit": 5,
+      "retryAttempts": 3,
+      "timeout": 30000
+    }
   }'
 ```
 
-### Get Summary
+**Response:**
+
+```json
+{
+  "_id": "674d1234567890abcdef",
+  "status": "pending",
+  "totalTasks": 4,
+  "message": "Run created successfully"
+}
+```
+
+### Get Run Status
 
 ```bash
-curl http://localhost:3000/runs/<RUN_ID>/summary
+curl http://localhost:3000/runs/674d1234567890abcdef
+```
+
+**Response:**
+
+```json
+{
+  "_id": "674d1234567890abcdef",
+  "status": "completed",
+  "completedAt": "2024-12-02T10:30:00Z",
+  "stats": {
+    "totalTasks": 4,
+    "completedTasks": 4,
+    "failedTasks": 0,
+    "totalTokens": 1247,
+    "totalLatency": 3521,
+    "estimatedCost": 0.0012
+  }
+}
+```
+
+### Get Brand Summary
+
+```bash
+curl http://localhost:3000/runs/674d1234567890abcdef/summary
 ```
 
 **Response:**
@@ -172,139 +260,177 @@ curl http://localhost:3000/runs/<RUN_ID>/summary
       "brandName": "Stripe",
       "totalMentions": 3,
       "mentionRate": 0.75,
-      "byPrompt": [...]
+      "averagePosition": 2,
+      "byPrompt": [
+        {
+          "promptText": "What is the best payment processor...",
+          "mentions": 2,
+          "byModel": [
+            {
+              "model": "gpt-4o-mini",
+              "mentioned": true,
+              "positions": [1, 3]
+            }
+          ]
+        }
+      ]
     }
   ]
 }
 ```
 
-## 🎓 Scalability Considerations
-
-### Current Capabilities
-
-The implementation is designed for **production-scale workloads**:
-
-- ✅ **100k+ prompts/day** (single instance)
-- ✅ **Asynchronous batch processing** with configurable concurrency
-- ✅ **Circuit breaker pattern** prevents cascading failures
-- ✅ **Advanced rate limiting** (token bucket with burst support)
-- ✅ **Idempotent operations** (key + content hash deduplication)
-- ✅ **Defensive programming** (timeouts, exponential backoff with jitter)
-- ✅ **Partial failure handling** (individual request failures don't crash runs)
-- ✅ **Comprehensive metrics** (latency, tokens, cost tracking)
-
-### Example: High-Concurrency Run
+### Get Chat View
 
 ```bash
-curl -X POST http://localhost:3000/runs \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompts": [...1000 prompts...],
-    "brands": ["Stripe", "PayPal", "Square"],
-    "models": [
-      {"model": "gpt-4o-mini", "provider": "openai"},
-      {"model": "claude-3-5-haiku-20241022", "provider": "anthropic"}
-    ],
-    "idempotencyKey": "batch-2024-001",
-    "config": {
-      "concurrencyLimit": 20,
-      "retryAttempts": 3,
-      "timeout": 30000,
-      "enableCircuitBreaker": true
+curl http://localhost:3000/runs/674d1234567890abcdef/chat
+```
+
+**Response:** Grouped conversations showing full LLM responses with metadata
+
+```json
+{
+  "conversations": [
+    {
+      "prompt": "What is the best payment processor for startups?",
+      "responses": [
+        {
+          "model": "gpt-4o-mini",
+          "provider": "openai",
+          "response": "For startups, I'd recommend Stripe...",
+          "brandsMentioned": ["Stripe", "PayPal"],
+          "metadata": {
+            "latency": 1247,
+            "tokens": { "input": 15, "output": 87 },
+            "timestamp": "2024-12-02T10:29:45Z"
+          }
+        }
+      ]
     }
-  }'
+  ]
+}
 ```
 
-### System Architecture
+---
 
-```
-Client Request → REST API (non-blocking)
-                     ↓
-              Background Worker
-                     ↓
-    ┌────────────────┼────────────────┐
-    ↓                ↓                ↓
-Rate Limiter   Circuit Breaker   Retry Logic
-(Token Bucket)  (3 states)      (Exp backoff)
-    ↓                ↓                ↓
-    └────────────────┴────────────────┘
-                     ↓
-              LLM Providers
-         (OpenAI, Anthropic)
-                     ↓
-              MongoDB Storage
-```
+## 🧪 Testing & Validation
 
-### Scaling to 100k+ Prompts/Day
-
-**For 100k prompts/day**, the architecture would need:
-
-1. **Job Queue** (BullMQ + Redis)
-
-   - Distributed processing across workers
-   - Persistent job storage for reliability
-   - Priority queues for urgent runs
-
-2. **Horizontal Scaling** (Kubernetes)
-
-   - 5-10 worker pods (auto-scaling)
-   - 2-3 API pods (stateless)
-   - Global rate limiter (Redis-backed)
-
-3. **Database Optimization**
-
-   - MongoDB replica set (1 primary + 2 secondaries)
-   - Bulk operations for writes
-   - Read replicas for queries
-
-4. **Caching Layer** (Redis)
-
-   - Cache frequent prompt responses
-   - 20% cache hit rate = 20% cost savings
-
-5. **Monitoring & Observability**
-   - Prometheus + Grafana dashboards
-   - Distributed tracing (OpenTelemetry)
-   - Error tracking (Sentry)
-
-**See [SCALABILITY.md](./SCALABILITY.md) for detailed architecture, cost analysis, and production deployment strategies.**
-
-## 🧪 Testing
+### Using the CLI
 
 ```bash
-# Manual test script
-./test-run.sh
-
-# Using CLI
+# Create run from config file
 node cli.js create-run --config config.example.json --run 0
+
+# Watch progress in real-time
 node cli.js watch <run-id>
 
-# Unit tests
-pnpm test
-
-# E2E tests
-pnpm test:e2e
+# Export results to JSON
+node cli.js export <run-id> > results.json
 ```
 
 ## 📁 Project Structure
 
 ```
-src/
-├── repositories/
-│   └── llm-visibility/
-│       ├── schemas/           # MongoDB schemas
-│       ├── llm-provider.service.ts   # LLM API integration
-│       ├── llm-visibility.service.ts  # Core business logic
-│       ├── llm-visibility.controller.ts  # REST endpoints
-│       ├── llm-visibility.repositories.ts  # Data access
-│       └── llm-visibility.module.ts
-├── app.module.ts
-└── main.ts
-
-cli.js                 # Command-line interface
-config.example.json    # Example configuration
-test-run.sh           # Automated test script
+.
+├── backend-llm/                    # NestJS Backend API
+│   ├── src/
+│   │   ├── app.module.ts          # Root module
+│   │   ├── app.service.ts         # App service
+│   │   ├── main.ts                # Application entry point
+│   │   ├── controller/
+│   │   │   ├── app.controller.ts           # Health check endpoints
+│   │   │   └── llm-visibility.controller.ts # Main API controller
+│   │   ├── libs/
+│   │   │   ├── circuit-breaker-module/     # Circuit breaker implementation
+│   │   │   ├── nestjs-config-module/       # Configuration management
+│   │   │   ├── rate-limiter-module/        # Rate limiting
+│   │   │   ├── redis-module/               # Redis integration
+│   │   │   └── types/                      # Shared types
+│   │   └── repositories/
+│   │       ├── base.repository.ts          # Base repository pattern
+│   │       └── llm-visibility/
+│   │           ├── schemas/                # MongoDB schemas (Run, Prompt, Brand, etc.)
+│   │           ├── services/
+│   │           │   ├── llm-provider.service.ts      # LLM API integration
+│   │           │   └── llm-visibility.service.ts    # Core business logic
+│   │           ├── llm-visibility.controller.ts     # REST endpoints
+│   │           ├── llm-visibility.repositories.ts   # Data access layer
+│   │           ├── llm-visibility.module.ts         # Feature module
+│   │           └── types/                           # Feature-specific types
+│   ├── cli.js                     # Command-line interface
+│   ├── config.example.json        # Example configuration
+│   ├── config.scalability.json    # Scalability test config
+│   ├── test-run.sh               # Automated test script
+│   ├── test-scalability.sh       # Scalability test script
+│   └── package.json
+│
+├── frontend-llm/                  # React Frontend Dashboard
+│   ├── public/
+│   │   └── index.html
+│   ├── src/
+│   │   ├── App.js                # Main app component
+│   │   ├── App.css               # App styles
+│   │   ├── index.js              # React entry point
+│   │   ├── components/
+│   │   │   ├── RunList.js        # Run listing carousel with pagination
+│   │   │   ├── RunList.css       # Run list styles
+│   │   │   ├── RunDetails.js     # Run details with summary/chat tabs
+│   │   │   └── RunDetails.css    # Run details styles
+│   │   ├── services/
+│   │   │   └── api.js            # API client (fetch runs, summary, chat)
+│   │   └── styles/
+│   │       └── common.css        # Shared styles
+│   └── package.json
+│
+│
+├── README.md                      # This file
+├── QUICKSTART.md                  # 5-minute setup guide
+└── package.json                   # Workspace root
 ```
+
+### Key Components
+
+**Backend (`backend-llm/`)**
+
+- **Controllers**: REST API endpoints with comprehensive logging
+- **Services**: Business logic for LLM integration and brand analysis
+- **Repositories**: MongoDB data access with Mongoose
+- **Libs**: Reusable modules (circuit breaker, rate limiter, Redis)
+- **CLI**: Command-line tool for run management
+
+**Frontend (`frontend-llm/`)**
+
+- **Material-UI**: Modern React UI components
+- **RunList**: Horizontal carousel with search, sort, pagination
+- **RunDetails**: Tabbed view (Summary/Chat) with real-time updates
+- **API Service**: Centralized API client with auto-refresh
+
+---
+
+## 🛠️ Tech Stack & Dependencies
+
+### Backend
+
+- **NestJS 11**: Modular architecture, dependency injection, TypeScript-first
+- **MongoDB + Mongoose**: Document store for flexible schema, rich querying
+- **LLM SDKs**: Official OpenAI & Anthropic SDKs (type-safe, auto-retries)
+- **p-limit**: Concurrency control (battle-tested, 200M+ downloads)
+- **Valkey/Redis** (optional): Distributed rate limiting, circuit breaker state
+
+### Frontend
+
+- **React 19**: Modern hooks, concurrent features
+- **Material-UI v5**: Professional UI out-of-the-box
+- **react-markdown**: Safe rendering of LLM responses
+
+### Why These Choices?
+
+- ✅ **NestJS**: Enterprise-grade DI, familiar to Java/C# devs, great for backend systems
+- ✅ **MongoDB**: Schema flexibility for evolving LLM response formats
+- ✅ **Official SDKs**: Provider handles retries, token counting, streaming (future)
+- ⚠️ **No ORM for migrations**: MongoDB is schema-less, models are source of truth
+- ⚠️ **No Prisma**: Would add for PostgreSQL, but Mongoose is standard for Mongo
+
+---
 
 ## 🔧 Configuration
 
@@ -312,103 +438,231 @@ test-run.sh           # Automated test script
 
 ```env
 # Database
-BACKEND_LLM_DATABASE_URI=mongodb://localhost:27017
+BACKEND_LLM_DATABASE_URI=mongodb://localhost:27017/llm-visibility
 MONGODB_POOL_SIZE=10
+
+# Server
 PORT=3000
+NODE_ENV=development
 
 # LLM Providers (at least one required)
-OPENAI_API_KEY=sk-...
+OPENAI_API_KEY=sk-proj-...
 ANTHROPIC_API_KEY=sk-ant-...
+
+# Optional: Redis for distributed rate limiting
+REDIS_HOST=localhost
+REDIS_PORT=6379
 ```
 
-### Run Configuration
+### Run Configuration Options
 
 ```json
 {
-  "concurrencyLimit": 5, // Max concurrent LLM calls
-  "retryAttempts": 3, // Retry count for failures
-  "timeout": 30000 // Request timeout (ms)
+  "concurrencyLimit": 5, // Max parallel LLM calls (default: 5)
+  "retryAttempts": 3, // Retry failed requests (default: 3)
+  "timeout": 30000, // Request timeout in ms (default: 30s)
+  "enableCircuitBreaker": true, // Enable failure isolation (default: true)
+  "rateLimitPerMinute": 60 // Requests per minute cap (default: 60)
 }
 ```
 
-## 🛠️ Tech Stack
+**Tuning Tips:**
 
-- **Framework**: NestJS 11
-- **Database**: MongoDB (Mongoose)
-- **LLM SDKs**: OpenAI SDK, Anthropic SDK
-- **Utilities**: p-limit (concurrency), axios (HTTP)
-- **Language**: TypeScript
+- � Higher concurrency = faster completion, but higher rate limit risk
+- 🔧 Longer timeout = handle slow models (Claude can be slower)
+- 🔧 Disable circuit breaker for testing, enable for production
 
 ---
 
-## Project setup
+## 📚 Documentation
+
+This README covers architecture and trade-offs. For specific details:
+
+- **[QUICKSTART.md](./QUICKSTART.md)** - Complete setup guide (Docker, environment, first run)
+- **[REDIS_KEYS.md](./backend-llm/REDIS_KEYS.md)** - Redis key patterns for distributed mode
+
+---
+
+### Quick Start with Docker
 
 ```bash
-$ pnpm install
+# Complete setup in one command
+./docker-helper.sh setup
+
+# Other useful commands
+./docker-helper.sh start       # Start all services
+./docker-helper.sh stop        # Stop all services
+./docker-helper.sh logs        # View logs
+./docker-helper.sh status      # Check service status
+./docker-helper.sh cli <args>  # Run CLI commands in container
 ```
 
-## Compile and run the project
+See **[DOCKER_SETUP.md](./DOCKER_SETUP.md)** for complete Docker documentation.
+
+## 🤝 Contributing & Development
 
 ```bash
-# development
-$ pnpm run start
+# Install dependencies
+pnpm install
 
-# watch mode
-$ pnpm run start:dev
+# Start backend in development mode
+cd backend-llm && pnpm run start:dev
 
-# production mode
-$ pnpm run start:prod
+# Start frontend (optional)
+cd frontend-llm && npm start
 ```
 
-## Run tests
+## 📊 Project Summary
 
-```bash
-# unit tests
-$ pnpm run test
+### What's Been Built
 
-# e2e tests
-$ pnpm run test:e2e
+**Small, Solid Core:**
 
-# test coverage
-$ pnpm run test:cov
-```
+- ✅ Working end-to-end: API → LLM providers → MongoDB → Frontend
+- ✅ ~15 files of core logic (controllers, services, repositories)
+- ✅ Production patterns: circuit breaker, rate limiter, idempotency, retry logic
+- ✅ Runs with minimal fuss: `pnpm install && pnpm start:dev`
 
-## Deployment
+**Clear Abstractions:**
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+- `LLMProviderService`: Unified interface for OpenAI/Anthropic (easy to extend)
+- `CircuitBreaker` + `RateLimiter`: Reusable infrastructure modules
+- Repository pattern: Clean separation between data access and business logic
+- No over-engineering: In-process workers are fine until you need to scale
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+**Systems Thinking:**
 
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
+- Parallelism: Configurable concurrency with p-limit
+- Failure handling: Circuit breaker, exponential backoff, partial success tracking
+- Observability: Comprehensive logging at every critical point
+- Scalability: Documented path from single instance → 100k prompts/day
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+**Pragmatic Choices:**
 
-## Resources
+- CLI tool for quick testing (`node cli.js create-run`)
+- Example configs ready to copy-paste
+- Manual logging vs APM (works everywhere, zero dependencies)
+- In-memory rate limiting (simple, upgrade to Redis when needed)
 
-Check out a few resources that may come in handy when working with NestJS:
+# 🚀 Backend-First Production Roadmap (Prioritized)
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+**Estimated Timeline:** **2–3 months** from prototype → production-ready SaaS  
+This roadmap is **backend-priority**, focusing on stability, scalability, storage, typing, and repository/package revamp before feature work.
 
-## Support
+---
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### ✅ **Phase 1 — Core Backend Stability (Week 1–2)**
 
-## Stay in touch
+### **Horizontal Scaling**
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+- **Migrate to BullMQ job queue** (2–3 days)
+  - Concurrency, retries, backoff, sandbox workers
+- **Redis-backed rate limiter** (1 day)
+- **Kubernetes deployment configs** (2–3 days)
+  - HPA, resource limits, probes
 
-## License
+### **Repository Package Revamp (High Priority)**
+
+- Design a **new MongoDB repository interface** (1–2 days)
+- Add **bulk helpers** (`bulkUpsert`, `bulkDelete`, `bulkInsert`) (1 day)
+- Implement **query builder with type-safe chaining** (1–2 days)
+- Add **strict TypeScript generics per collection** (1 day)
+- Integrate **transaction support + index decorators** (1 day)
+
+---
+
+### ✅ **Phase 2 — Observability & Diagnostics (Week 3–4)**
+
+- **OpenTelemetry distributed tracing** (3–4 days)
+  - Trace: API → service → queue → worker → external LLM provider
+- **Prometheus metrics + Grafana dashboards** (2–3 days)
+  - Request latency, queue depth, worker crash count, DB performance
+- **PagerDuty alerts** (1 day)
+  - Circuit breaker trip
+  - High error rate
+  - Queue congestion
+
+---
+
+### ✅ **Phase 3 — Database Improvements & Migration (Week 4–6)**
+
+### **MongoDB Optimization**
+
+- **MongoDB bulk operations (10× faster writes)** (2 days)
+- **Database indexing strategy** (1 day)
+
+### **PostgreSQL Migration (Backend-Critical)**
+
+- DB schema design (1 day)
+- Write migration pipelines & sync scripts (1–2 days)
+- Integrate pgBouncer + pooling strategy (1 day)
+- Move read-critical paths to Postgres (1 day)
+- Validate data + fallback plan (1 day)
+
+---
+
+### ✅ **Phase 4 — Backend Typing & Internal Contracts (Week 6–7)**
+
+### **Strengthen TypeScript Typing**
+
+- Add **Zod / TypeBox** schemas for all DTOs (1–2 days)
+- Implement **end-to-end type safety** (request → service → queue → worker → DB) (2 days)
+- Strong typings for:
+  - Queue job payloads
+  - Repository methods
+  - External provider adapters
+  - Error classes (`RateLimitError`, `CircuitOpenError`, etc.)
+
+---
+
+### ✅ **Phase 5 — Performance & Cost Optimization (Week 7–8)**
+
+- **Response caching (~20% cost reduction)** (2 days)
+- Tune queue throughput & worker autoscaling (1 day)
+- Query optimization (1 day)
+
+---
+
+### ⚡ **Phase 6 — Feature Delivery (After Backend Foundations)**
+
+Once the backend is stable, typed, optimized, and instrumented.
+
+- **Authentication (JWT + API Keys)** (3–4 days)
+- **Checkpointed run resumes** (2–3 days)
+- **WebSocket streaming for live updates** (3–4 days)
+- **Add new LLM providers** (Gemini, Mistral, Llama) (2–3 days each)
+
+---
+
+### 🕒 **Total Estimated Duration**
+
+- **Backend foundations:** 6–7 weeks
+- **Feature layer:** 2–4 weeks
+- **Total:** **2–3 months**
+
+---
+
+### 🎯 Backend Priorities Summary (Top-Down)
+
+1. **Repository revamp** (MongoDB package + typing)
+2. **BullMQ + Redis + rate limiting**
+3. **Kubernetes scaling configuration**
+4. **Observability (OTel + Prom + Grafana + PagerDuty)**
+5. **Postgres migration**
+6. **Strong typing + schema-level validation**
+7. **Performance + caching**
+8. **Features**
+
+---
+
+This architecture supports **100k+ prompts/day** with **fault tolerance**, **cost efficiency**, and **horizontal scalability**. Every design decision is backed by systems thinking: caching reduces costs, job queues enable horizontal scaling, bulk operations optimize writes, and comprehensive monitoring prevents surprises.
+
+---
+
+## 📝 License
+
+MIT License - see LICENSE file for details.
+
+Built with [NestJS](https://nestjs.com/) - A progressive Node.js framework.
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).

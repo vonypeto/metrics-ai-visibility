@@ -157,7 +157,7 @@ export class LLMVisibilityController {
     }
   }
 
-  @Get('health')
+  @Get('gethealth')
   async getHealth(): Promise<any> {
     this.logger.debug('Health check requested');
 

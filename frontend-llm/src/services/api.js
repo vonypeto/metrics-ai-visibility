@@ -1,11 +1,11 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
 
 class ApiService {
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
     const config = {
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         ...options.headers,
       },
       ...options,
@@ -17,26 +17,26 @@ class ApiService {
 
       if (!response.ok) {
         throw new Error(
-          data.message || `HTTP error! status: ${response.status}`
+          data.message || `HTTP error! status: ${response.status}`,
         );
       }
 
       return data;
     } catch (error) {
-      console.error("API request failed:", error);
+      console.error('API request failed:', error);
       throw error;
     }
   }
 
   // Health check
   async getHealth() {
-    return this.request("/health");
+    return this.request('/gethealth');
   }
 
   // Run operations
   async createRun(runData) {
-    return this.request("/runs", {
-      method: "POST",
+    return this.request('/runs', {
+      method: 'POST',
       body: JSON.stringify(runData),
     });
   }

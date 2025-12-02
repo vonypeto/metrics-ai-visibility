@@ -23,7 +23,7 @@ export interface CreateRunDto {
   brands: string[];
   models: { model: string; provider: string }[];
   notes?: string;
-  idempotencyKey?: string; // Client-provided idempotency key
+  idempotencyKey?: string;
   config?: {
     concurrencyLimit?: number;
     retryAttempts?: number;
@@ -68,7 +68,6 @@ export class LLMVisibilityService {
     private readonly llmProvider: LLMProviderService,
     private readonly rateLimiter: RateLimiterService,
   ) {
-    // Initialize provider-specific rate limiters
     this.rateLimiter.createProviderLimiters();
   }
 
@@ -90,55 +89,28 @@ export class LLMVisibilityService {
   }
 
   async createRun(dto: CreateRunDto): Promise<{ run: IRun; isNew: boolean }> {
-    // Check for idempotency key first
-    if (dto.idempotencyKey) {
-      const existing = await this.runRepository.findByIdempotencyKey(
-        dto.idempotencyKey,
-      );
-      if (existing) {
-        this.logger.log(
-          `Returning existing run ${existing._id} for idempotency key ${dto.idempotencyKey}`,
-        );
-        return { run: existing, isNew: false };
-      }
+    const existingRun = await this.checkExistingRun(dto);
+    if (existingRun) {
+      return { run: existingRun, isNew: false };
     }
 
-    // Check for duplicate content (same prompts, brands, models)
-    const contentHash = this.generateContentHash(dto);
-    const recentDuplicate =
-      await this.runRepository.findByContentHash(contentHash);
+    const [prompts, brands] = await Promise.all([
+      Promise.all(
+        dto.prompts.map((text) => this.promptRepository.findOrCreate(text)),
+      ),
+      Promise.all(
+        dto.brands.map((name) => this.brandRepository.findOrCreate(name)),
+      ),
+    ]);
 
-    if (recentDuplicate) {
-      const ageMinutes =
-        (Date.now() - recentDuplicate.createdAt.getTime()) / 60000;
-      // If duplicate is less than 5 minutes old, return it
-      if (ageMinutes < 5) {
-        this.logger.log(
-          `Returning recent duplicate run ${recentDuplicate._id} (${ageMinutes.toFixed(1)}min old)`,
-        );
-        return { run: recentDuplicate, isNew: false };
-      }
-    }
-
-    // Create or get prompts and brands
-    const prompts = await Promise.all(
-      dto.prompts.map((text) => this.promptRepository.findOrCreate(text)),
-    );
-
-    const brands = await Promise.all(
-      dto.brands.map((name) => this.brandRepository.findOrCreate(name)),
-    );
-
-    // Create run
-    const totalPrompts = prompts.length * dto.models.length;
     const run = await this.runRepository.create({
       notes: dto.notes,
       status: 'pending',
-      totalPrompts,
+      totalPrompts: prompts.length * dto.models.length,
       completedPrompts: 0,
       failedPrompts: 0,
       idempotencyKey: dto.idempotencyKey,
-      contentHash,
+      contentHash: this.generateContentHash(dto),
       config: {
         brands: dto.brands,
         models: dto.models.map((m) => `${m.provider}:${m.model}`),
@@ -150,17 +122,41 @@ export class LLMVisibilityService {
       },
     } as any);
 
-    // Start processing asynchronously
     this.processRun(run._id.toString(), prompts, brands, dto.models).catch(
       (error) => {
-        this.logger.error(
-          `Run ${run._id} processing failed: ${error.message}`,
-          error.stack,
-        );
+        this.logger.error(`Run ${run._id} failed: ${error.message}`);
       },
     );
 
     return { run, isNew: true };
+  }
+
+  private async checkExistingRun(dto: CreateRunDto): Promise<IRun | null> {
+    if (dto.idempotencyKey) {
+      const existing = await this.runRepository.findByIdempotencyKey(
+        dto.idempotencyKey,
+      );
+      if (existing) {
+        this.logger.log(
+          `Returning existing run ${existing._id} (idempotency key)`,
+        );
+        return existing;
+      }
+    }
+
+    const contentHash = this.generateContentHash(dto);
+    const duplicate = await this.runRepository.findByContentHash(contentHash);
+    if (duplicate) {
+      const ageMinutes = (Date.now() - duplicate.createdAt.getTime()) / 60000;
+      if (ageMinutes < 5) {
+        this.logger.log(
+          `Returning duplicate run ${duplicate._id} (${ageMinutes.toFixed(1)}min old)`,
+        );
+        return duplicate;
+      }
+    }
+
+    return null;
   }
 
   private async processRun(
@@ -169,62 +165,79 @@ export class LLMVisibilityService {
     brands: IBrand[],
     models: { model: string; provider: string }[],
   ): Promise<void> {
-    const runStartTime = Date.now();
+    const startTime = Date.now();
     this.logger.log(
-      `Starting run ${runId} with ${prompts.length} prompts and ${models.length} models`,
+      `Starting run ${runId}: ${prompts.length} prompts × ${models.length} models`,
     );
 
-    // Update run status
-    await this.runRepository.updateProgress(runId, {
-      status: 'running',
-    });
+    await this.runRepository.updateProgress(runId, { status: 'running' });
 
     const run = await this.runRepository.findById(
       new mongoose.Types.ObjectId(runId),
     );
     if (!run) throw new Error('Run not found');
 
-    const concurrencyLimit = run.config.concurrencyLimit || 5;
-    const limit = pLimit(concurrencyLimit);
+    const { latencies, totalTokens } = await this.processAllPairs(
+      run,
+      prompts,
+      brands,
+      models,
+    );
 
-    // Track metrics
+    await this.updateRunCompletion(
+      runId,
+      startTime,
+      latencies,
+      totalTokens,
+      models,
+    );
+  }
+
+  private async processAllPairs(
+    run: IRun,
+    prompts: IPrompt[],
+    brands: IBrand[],
+    models: { model: string; provider: string }[],
+  ): Promise<{ latencies: number[]; totalTokens: number }> {
+    const limit = pLimit(run.config.concurrencyLimit || 5);
     const latencies: number[] = [];
     let totalTokens = 0;
 
-    // Create tasks for all prompt-model combinations
-    const tasks: Promise<void>[] = [];
-
-    for (const prompt of prompts) {
-      for (const modelConfig of models) {
-        const task = limit(() =>
-          this.processPromptModelPair(
-            runId,
+    const tasks = prompts.flatMap((prompt) =>
+      models.map((model) =>
+        limit(async () => {
+          const tokens = await this.processPromptModelPair(
+            run._id.toString(),
             prompt,
             brands,
-            modelConfig,
+            model,
             run.config.retryAttempts || 3,
             run.config.timeout || 30000,
             run.config.enableCircuitBreaker !== false,
             latencies,
-          ).then((tokens) => {
-            if (tokens) totalTokens += tokens;
-          }),
-        );
-        tasks.push(task);
-      }
-    }
+          );
+          totalTokens += tokens;
+        }),
+      ),
+    );
 
-    // Wait for all tasks to complete
     await Promise.allSettled(tasks);
+    return { latencies, totalTokens };
+  }
 
-    // Calculate final metrics
-    const runDuration = Date.now() - runStartTime;
+  private async updateRunCompletion(
+    runId: string,
+    startTime: number,
+    latencies: number[],
+    totalTokens: number,
+    models: { model: string; provider: string }[],
+  ): Promise<void> {
+    const duration = Date.now() - startTime;
     const avgLatency =
       latencies.length > 0
         ? latencies.reduce((a, b) => a + b, 0) / latencies.length
         : 0;
 
-    // Update final run status
     const responses = await this.responseRepository.findByRun(runId);
     const successCount = responses.filter((r) => r.status === 'success').length;
     const failedCount = responses.filter((r) => r.status !== 'success').length;
@@ -240,16 +253,15 @@ export class LLMVisibilityService {
       failedPrompts: failedCount,
     });
 
-    // Update metrics
     await this.runRepository.updateMetrics(runId, {
-      totalDurationMs: runDuration,
+      totalDurationMs: duration,
       avgLatencyMs: Math.round(avgLatency),
       totalTokensUsed: totalTokens,
       estimatedCost: this.estimateCost(totalTokens, models),
     });
 
     this.logger.log(
-      `Run ${runId} completed in ${(runDuration / 1000).toFixed(2)}s: ${successCount} succeeded, ${failedCount} failed`,
+      `Run ${runId} completed in ${(duration / 1000).toFixed(2)}s: ${successCount} ok, ${failedCount} failed`,
     );
   }
 
@@ -260,16 +272,14 @@ export class LLMVisibilityService {
     totalTokens: number,
     models: { model: string; provider: string }[],
   ): number {
-    // Rough estimates (adjust based on actual pricing)
     const costPerToken: Record<string, number> = {
-      'gpt-4o-mini': 0.00000015, // $0.15 per 1M tokens
-      'gpt-4o': 0.000005, // $5 per 1M tokens
-      'gpt-3.5-turbo': 0.0000005, // $0.50 per 1M tokens
-      'claude-3-5-sonnet-20241022': 0.000003, // $3 per 1M tokens
-      'claude-3-5-haiku-20241022': 0.0000008, // $0.80 per 1M tokens
+      'gpt-4o-mini': 0.00000015,
+      'gpt-4o': 0.000005,
+      'gpt-3.5-turbo': 0.0000005,
+      'claude-3-5-sonnet-20241022': 0.000003,
+      'claude-3-5-haiku-20241022': 0.0000008,
     };
 
-    // Use average cost if multiple models
     const avgCost =
       models.reduce((sum, m) => {
         return sum + (costPerToken[m.model] || 0.000001);
@@ -289,12 +299,9 @@ export class LLMVisibilityService {
     latencies: number[],
   ): Promise<number> {
     let retryCount = 0;
-    let lastError: Error | undefined;
 
     while (retryCount <= maxRetries) {
       try {
-        // Use distributed rate limiter if available (shared across workers)
-        // Falls back to local rate limiter if Redis not available
         const llmResponse = await this.rateLimiter.scheduleWithDistributedLimit(
           modelConfig.provider,
           () =>
@@ -306,46 +313,93 @@ export class LLMVisibilityService {
             }),
         );
 
-        // Track latency
         latencies.push(llmResponse.latencyMs);
-
-        // Store response
-        const response = await this.responseRepository.create({
-          runId: new mongoose.Types.ObjectId(runId),
-          promptId: prompt._id,
-          modelName: modelConfig.model,
-          provider: modelConfig.provider,
-          latencyMs: llmResponse.latencyMs,
-          rawText: llmResponse.text,
-          tokenUsage: llmResponse.tokenUsage,
-          metadata: llmResponse.metadata,
-          status: 'success',
+        const response = await this.saveResponse(
+          runId,
+          prompt,
+          modelConfig,
+          llmResponse,
           retryCount,
-        } as any);
-
-        // Analyze brand mentions
+        );
         await this.analyzeBrandMentions(response, brands, llmResponse.text);
 
         return llmResponse.tokenUsage?.totalTokens || 0;
       } catch (error) {
-        lastError = error as Error;
-        retryCount++;
+        const errorMsg = (error as Error)?.message || '';
+        const isRateLimit = this.isRateLimitError(errorMsg);
 
-        if (retryCount <= maxRetries) {
-          // Exponential backoff with jitter
-          const baseDelay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
-          const jitter = Math.random() * 1000;
-          const delay = baseDelay + jitter;
-
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          this.logger.warn(
-            `Retry ${retryCount}/${maxRetries} for prompt ${prompt._id} with ${modelConfig.provider}:${modelConfig.model} after ${delay.toFixed(0)}ms`,
+        if (isRateLimit || retryCount >= maxRetries) {
+          await this.saveFailedResponse(
+            runId,
+            prompt,
+            modelConfig,
+            error as Error,
+            retryCount,
+            isRateLimit,
           );
+          return 0;
         }
+
+        retryCount++;
+        await this.delayWithBackoff(retryCount);
+        this.logger.warn(
+          `Retry ${retryCount}/${maxRetries}: ${modelConfig.provider}:${modelConfig.model}`,
+        );
       }
     }
 
-    // All retries failed, store error response
+    return 0;
+  }
+
+  private isRateLimitError(errorMsg: string): boolean {
+    return (
+      errorMsg.includes('Rate limit') ||
+      errorMsg.includes('rate limit') ||
+      errorMsg.includes('429') ||
+      errorMsg.includes('Too Many Requests')
+    );
+  }
+
+  private async delayWithBackoff(retryCount: number): Promise<void> {
+    const baseDelay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
+    const jitter = Math.random() * 1000;
+    await new Promise((resolve) => setTimeout(resolve, baseDelay + jitter));
+  }
+
+  private async saveResponse(
+    runId: string,
+    prompt: IPrompt,
+    modelConfig: { model: string; provider: string },
+    llmResponse: any,
+    retryCount: number,
+  ): Promise<IResponse> {
+    return this.responseRepository.create({
+      runId: new mongoose.Types.ObjectId(runId),
+      promptId: prompt._id,
+      modelName: modelConfig.model,
+      provider: modelConfig.provider,
+      latencyMs: llmResponse.latencyMs,
+      rawText: llmResponse.text,
+      tokenUsage: llmResponse.tokenUsage,
+      metadata: llmResponse.metadata,
+      status: 'success',
+      retryCount,
+    } as any);
+  }
+
+  private async saveFailedResponse(
+    runId: string,
+    prompt: IPrompt,
+    modelConfig: { model: string; provider: string },
+    error: Error,
+    retryCount: number,
+    isRateLimit: boolean,
+  ): Promise<void> {
+    const status = isRateLimit ? 'rate_limited' : 'failed';
+    const errorMessage = isRateLimit
+      ? `Rate limit exceeded: ${error.message}`
+      : error.message || 'Unknown error';
+
     await this.responseRepository.create({
       runId: new mongoose.Types.ObjectId(runId),
       promptId: prompt._id,
@@ -353,16 +407,15 @@ export class LLMVisibilityService {
       provider: modelConfig.provider,
       latencyMs: 0,
       rawText: '',
-      status: 'failed',
-      errorMessage: lastError?.message || 'Unknown error',
-      retryCount: maxRetries,
+      status,
+      errorMessage,
+      retryCount,
     } as any);
 
-    this.logger.error(
-      `Failed to process prompt ${prompt._id} with ${modelConfig.provider}:${modelConfig.model} after ${maxRetries} retries: ${lastError?.message}`,
+    const logMethod = isRateLimit ? 'warn' : 'error';
+    this.logger[logMethod](
+      `${status}: ${modelConfig.provider}:${modelConfig.model} - ${errorMessage}`,
     );
-
-    return 0;
   }
 
   private async analyzeBrandMentions(
@@ -372,132 +425,141 @@ export class LLMVisibilityService {
   ): Promise<void> {
     const lowerText = responseText.toLowerCase();
 
-    for (const brand of brands) {
-      const brandNameLower = brand.name.toLowerCase();
-      const mentioned = lowerText.includes(brandNameLower);
+    const mentions = brands.map((brand) => {
+      const brandLower = brand.name.toLowerCase();
+      const mentioned = lowerText.includes(brandLower);
 
-      let positionIndex: number | undefined;
-      let mentionCount = 0;
-      let context: string | undefined;
-
-      if (mentioned) {
-        positionIndex = lowerText.indexOf(brandNameLower);
-
-        // Count all occurrences
-        let pos = 0;
-        while ((pos = lowerText.indexOf(brandNameLower, pos)) !== -1) {
-          mentionCount++;
-          pos += brandNameLower.length;
-        }
-
-        // Extract context (50 chars before and after first mention)
-        if (positionIndex !== -1) {
-          const start = Math.max(0, positionIndex - 50);
-          const end = Math.min(
-            responseText.length,
-            positionIndex + brandNameLower.length + 50,
-          );
-          context = responseText.substring(start, end);
-        }
+      if (!mentioned) {
+        return {
+          responseId: response._id,
+          brandId: brand._id,
+          mentioned: false,
+          positionIndex: undefined,
+          mentionCount: 0,
+          context: undefined,
+        };
       }
 
-      await this.brandMentionRepository.create({
+      const mentionCount = (lowerText.match(new RegExp(brandLower, 'g')) || [])
+        .length;
+      const positionIndex = lowerText.indexOf(brandLower);
+
+      const start = Math.max(0, positionIndex - 50);
+      const end = Math.min(
+        responseText.length,
+        positionIndex + brandLower.length + 50,
+      );
+      const context = responseText.substring(start, end);
+
+      return {
         responseId: response._id,
         brandId: brand._id,
-        mentioned,
+        mentioned: true,
         positionIndex,
         mentionCount,
         context,
-      } as any);
-    }
+      };
+    });
+
+    await Promise.all(
+      mentions.map((m) => this.brandMentionRepository.create(m as any)),
+    );
   }
 
   async getRunSummary(runId: string): Promise<RunSummary> {
     const run = await this.runRepository.findById(
       new mongoose.Types.ObjectId(runId),
     );
-    if (!run) {
-      throw new Error('Run not found');
-    }
+    if (!run) throw new Error('Run not found');
 
-    const aggregatedData =
-      await this.brandMentionRepository.getAggregatedMetrics(runId);
+    const data = await this.brandMentionRepository.getAggregatedMetrics(runId);
 
-    // Group by brand
     const brandMap = new Map<string, any>();
     const promptMap = new Map<string, any>();
 
-    for (const item of aggregatedData) {
-      const brandName = item._id.brandName;
-      const promptText = item._id.promptText;
-      const modelName = item._id.model;
-
-      // Brand metrics
-      if (!brandMap.has(brandName)) {
-        brandMap.set(brandName, {
-          brandName,
-          totalMentions: 0,
-          mentionCount: 0,
-          byPrompt: [],
-        });
-      }
-      const brandData = brandMap.get(brandName);
-      brandData.totalMentions += item.totalMentions;
-      if (item.mentioned) brandData.mentionCount++;
-
-      let promptEntry = brandData.byPrompt.find(
-        (p: any) => p.promptText === promptText,
-      );
-      if (!promptEntry) {
-        promptEntry = {
-          promptText,
-          mentioned: false,
-          mentionCount: 0,
-          models: [],
-        };
-        brandData.byPrompt.push(promptEntry);
-      }
-      if (item.mentioned) {
-        promptEntry.mentioned = true;
-        promptEntry.mentionCount += item.totalMentions;
-      }
-      promptEntry.models.push(modelName);
-
-      // Prompt metrics
-      if (!promptMap.has(promptText)) {
-        promptMap.set(promptText, {
-          promptText,
-          totalResponses: 0,
-          successfulResponses: 0,
-          brandsMetioned: new Set(),
-        });
-      }
-      const promptData = promptMap.get(promptText);
-      promptData.totalResponses++;
-      if (item.mentioned) {
-        promptData.successfulResponses++;
-        promptData.brandsMetioned.add(brandName);
-      }
+    for (const item of data) {
+      this.aggregateBrandMetrics(brandMap, item);
+      this.aggregatePromptMetrics(promptMap, item);
     }
 
-    // Calculate rates
-    const brandMetrics = Array.from(brandMap.values()).map((brand) => ({
-      ...brand,
-      mentionRate:
-        brand.byPrompt.length > 0
-          ? brand.mentionCount / brand.byPrompt.length
-          : 0,
-    }));
-
-    const promptMetrics = Array.from(promptMap.values()).map((prompt) => ({
-      ...prompt,
-      brandsMetioned: Array.from(prompt.brandsMetioned),
-    }));
     return {
       run,
-      brandMetrics,
-      promptMetrics,
+      brandMetrics: Array.from(brandMap.values()).map((b) => ({
+        ...b,
+        mentionRate:
+          b.byPrompt.length > 0 ? b.mentionCount / b.byPrompt.length : 0,
+      })),
+      promptMetrics: Array.from(promptMap.values()).map((p) => ({
+        ...p,
+        brandsMetioned: Array.from(p.brandsMetioned),
+      })),
     };
+  }
+
+  private aggregateBrandMetrics(brandMap: Map<string, any>, item: any): void {
+    const { brandName, promptText, model, totalMentions, mentioned } = {
+      brandName: item._id.brandName,
+      promptText: item._id.promptText,
+      model: item._id.model,
+      totalMentions: item.totalMentions,
+      mentioned: item.mentioned,
+    };
+
+    if (!brandMap.has(brandName)) {
+      brandMap.set(brandName, {
+        brandName,
+        totalMentions: 0,
+        mentionCount: 0,
+        byPrompt: [],
+      });
+    }
+
+    const brand = brandMap.get(brandName);
+    brand.totalMentions += totalMentions;
+    if (mentioned) brand.mentionCount++;
+
+    let promptEntry = brand.byPrompt.find(
+      (p: any) => p.promptText === promptText,
+    );
+    if (!promptEntry) {
+      promptEntry = {
+        promptText,
+        mentioned: false,
+        mentionCount: 0,
+        models: [],
+      };
+      brand.byPrompt.push(promptEntry);
+    }
+
+    if (mentioned) {
+      promptEntry.mentioned = true;
+      promptEntry.mentionCount += totalMentions;
+    }
+    promptEntry.models.push(model);
+  }
+
+  private aggregatePromptMetrics(promptMap: Map<string, any>, item: any): void {
+    const { promptText, brandName, mentioned } = {
+      promptText: item._id.promptText,
+      brandName: item._id.brandName,
+      mentioned: item.mentioned,
+    };
+
+    if (!promptMap.has(promptText)) {
+      promptMap.set(promptText, {
+        promptText,
+        totalResponses: 0,
+        successfulResponses: 0,
+        brandsMetioned: new Set(),
+      });
+    }
+
+    const prompt = promptMap.get(promptText);
+    prompt.totalResponses++;
+    if (mentioned) {
+      prompt.successfulResponses++;
+      prompt.brandsMetioned.add(brandName);
+    }
   }
 
   async listRuns(
@@ -515,9 +577,6 @@ export class LLMVisibilityService {
     return this.runRepository.findById(new mongoose.Types.ObjectId(runId));
   }
 
-  /**
-   * Get chat-like view of a run showing prompts and their responses
-   */
   async getRunChat(runId: string): Promise<{
     run: IRun;
     conversations: Array<{
@@ -548,14 +607,10 @@ export class LLMVisibilityService {
     const run = await this.runRepository.findById(
       new mongoose.Types.ObjectId(runId),
     );
-    if (!run) {
-      throw new Error('Run not found');
-    }
+    if (!run) throw new Error('Run not found');
 
-    // Get all responses for this run
     const responses = await this.responseRepository.findByRun(runId);
 
-    // Get all unique prompt IDs and fetch prompts
     const promptIds = [...new Set(responses.map((r) => r.promptId.toString()))];
     const prompts = await Promise.all(
       promptIds.map((id) =>
@@ -568,57 +623,46 @@ export class LLMVisibilityService {
         .map((p) => [p._id.toString(), p.text]),
     );
 
-    // Get all brand mentions for these responses
     const responseIds = responses.map((r) => r._id);
-    const allBrandMentions = await Promise.all(
+    const allMentions = await Promise.all(
       responseIds.map((id) =>
         this.brandMentionRepository.findByResponse(id.toString()),
       ),
     );
-    const brandMentionMap = new Map(
-      responseIds.map((id, idx) => [id.toString(), allBrandMentions[idx]]),
+    const mentionMap = new Map(
+      responseIds.map((id, idx) => [id.toString(), allMentions[idx]]),
     );
 
-    // Group responses by prompt
     const promptResponseMap = new Map<string, IResponse[]>();
     for (const response of responses) {
-      const promptId = response.promptId.toString();
-      if (!promptResponseMap.has(promptId)) {
-        promptResponseMap.set(promptId, []);
-      }
-      promptResponseMap.get(promptId)!.push(response);
+      const pid = response.promptId.toString();
+      if (!promptResponseMap.has(pid)) promptResponseMap.set(pid, []);
+      promptResponseMap.get(pid)!.push(response);
     }
 
-    // Build conversations
     const conversations = Array.from(promptResponseMap.entries()).map(
       ([promptId, promptResponses]) => ({
         prompt: promptMap.get(promptId) || 'Unknown prompt',
         promptId,
-        responses: promptResponses.map((response) => {
-          const mentions = brandMentionMap.get(response._id.toString()) || [];
-          return {
-            model: response.modelName,
-            provider: response.provider,
-            text: response.rawText,
-            latencyMs: response.latencyMs,
-            tokenUsage: response.tokenUsage,
-            status: response.status,
-            errorMessage: response.errorMessage,
-            timestamp: response.timestamp,
-            brandMentions: mentions.map((mention) => ({
-              brandName: (mention.brandId as any).name || 'Unknown',
-              mentioned: mention.mentioned,
-              mentionCount: mention.mentionCount || 0,
-              context: mention.context,
-            })),
-          };
-        }),
+        responses: promptResponses.map((r) => ({
+          model: r.modelName,
+          provider: r.provider,
+          text: r.rawText,
+          latencyMs: r.latencyMs,
+          tokenUsage: r.tokenUsage,
+          status: r.status,
+          errorMessage: r.errorMessage,
+          timestamp: r.timestamp,
+          brandMentions: (mentionMap.get(r._id.toString()) || []).map((m) => ({
+            brandName: (m.brandId as any).name || 'Unknown',
+            mentioned: m.mentioned,
+            mentionCount: m.mentionCount || 0,
+            context: m.context,
+          })),
+        })),
       }),
     );
 
-    return {
-      run,
-      conversations,
-    };
+    return { run, conversations };
   }
 }

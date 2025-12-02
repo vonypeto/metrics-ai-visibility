@@ -55,11 +55,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         },
         reconnectOnError: (err) => {
           this.logger.error(`Redis connection error: ${err.message}`);
-          return true; // Reconnect
+          return true;
         },
       });
 
-      // Event handlers
       this.client.on('connect', () => {
         this.logger.log('Redis connected');
         this.isConnected = true;
@@ -83,7 +82,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         this.logger.log('Redis reconnecting...');
       });
 
-      // Wait for connection
       await this.client.ping();
       this.logger.log('Redis connection verified');
     } catch (error) {

@@ -1,0 +1,123 @@
+version: "3.9"
+
+services:
+  # -----------------------------
+  # MongoDB
+  # -----------------------------
+  mongodb:
+    image: mongo:7.0
+    container_name: backend-llm-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - llm-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -----------------------------
+  # Redis
+  # -----------------------------
+  redis:
+    image: redis:7.2
+    container_name: backend-llm-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--maxmemory",
+        "512mb",
+        "--maxmemory-policy",
+        "allkeys-lru",
+      ]
+    volumes:
+      - redis_data:/data
+    networks:
+      - llm-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -----------------------------
+  # RedisInsight (GUI)
+  # -----------------------------
+  redis_insight:
+    image: redis/redisinsight:latest
+    container_name: redis-insight
+    restart: always
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
+    networks:
+      - llm-network
+
+  # -----------------------------
+  # Backend API (NestJS)
+  # -----------------------------
+  backend:
+    build:
+      context: ./backend-llm
+      dockerfile: Dockerfile
+    container_name: backend-llm-api
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - BACKEND_LLM_DATABASE_URI=mongodb://root:password@mongodb:27017/dbai?authSource=admin
+      - MONGODB_POOL_SIZE=10
+      - REDIS_URI=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - llm-network
+    volumes:
+      - ./backend-llm/config.example.json:/app/config.example.json:ro
+      - ./backend-llm/config.scalability.json:/app/config.scalability.json:ro
+
+  # -----------------------------
+  # Frontend (React)
+  # -----------------------------
+  frontend:
+    build:
+      context: ./frontend-llm
+      dockerfile: Dockerfile
+    container_name: frontend-llm-app
+    restart: always
+    ports:
+      - "3001:80"
+    environment:
+      - REACT_APP_API_URL=http://localhost:3000
+    depends_on:
+      - backend
+    networks:
+      - llm-network
+
+volumes:
+  mongo_data:
+  redis_data:
+
+networks:
+  llm-network:
+    driver: bridge

@@ -1,16 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 export enum CircuitState {
-  CLOSED = 'CLOSED', // Normal operation
-  OPEN = 'OPEN', // Failing, reject requests
-  HALF_OPEN = 'HALF_OPEN', // Testing if service recovered
+  CLOSED = 'CLOSED',
+  OPEN = 'OPEN',
+  HALF_OPEN = 'HALF_OPEN',
 }
 
 interface CircuitBreakerConfig {
-  failureThreshold: number; // Number of failures before opening
-  successThreshold: number; // Number of successes to close from half-open
-  timeout: number; // Time to wait before trying half-open (ms)
-  windowSize: number; // Time window for counting failures (ms)
+  failureThreshold: number;
+  successThreshold: number;
+  timeout: number;
+  windowSize: number;
 }
 
 interface CircuitStats {
@@ -45,8 +45,8 @@ export class CircuitBreakerService {
     const defaultConfig: CircuitBreakerConfig = {
       failureThreshold: 5,
       successThreshold: 2,
-      timeout: 60000, // 1 minute
-      windowSize: 120000, // 2 minutes
+      timeout: 60000,
+      windowSize: 120000,
       ...config,
     };
 
@@ -70,29 +70,24 @@ export class CircuitBreakerService {
     const config = this.configs.get(serviceName);
 
     if (!circuit || !config) {
-      // No circuit breaker configured, execute normally
       return fn();
     }
 
-    // Check if circuit is open
     if (circuit.state === CircuitState.OPEN) {
       const now = Date.now();
       const timeSinceLastFailure = now - (circuit.lastFailureTime || 0);
 
       if (timeSinceLastFailure >= config.timeout) {
-        // Try half-open
         this.logger.log(`Circuit ${serviceName} transitioning to HALF_OPEN`);
         circuit.state = CircuitState.HALF_OPEN;
         circuit.successes = 0;
       } else {
-        // Still open, reject immediately
         throw new Error(
           `Circuit breaker is OPEN for ${serviceName}. Service is temporarily unavailable.`,
         );
       }
     }
 
-    // Execute the function
     try {
       const result = await fn();
       this.onSuccess(serviceName);
@@ -121,7 +116,6 @@ export class CircuitBreakerService {
         circuit.successes = 0;
       }
     } else if (circuit.state === CircuitState.CLOSED) {
-      // Reset failure count on success
       circuit.failures = 0;
     }
   }
@@ -138,7 +132,6 @@ export class CircuitBreakerService {
     circuit.lastFailureTime = Date.now();
 
     if (circuit.state === CircuitState.HALF_OPEN) {
-      // Failed during half-open, go back to open
       this.logger.warn(
         `Circuit ${serviceName} failed during HALF_OPEN, transitioning back to OPEN`,
       );
@@ -148,10 +141,9 @@ export class CircuitBreakerService {
     } else if (circuit.state === CircuitState.CLOSED) {
       circuit.failures++;
 
-      // Clean up old failures outside the window
       const now = Date.now();
       if (now - (circuit.lastFailureTime || 0) > config.windowSize) {
-        circuit.failures = 1; // Reset to current failure
+        circuit.failures = 1;
       }
 
       if (circuit.failures >= config.failureThreshold) {

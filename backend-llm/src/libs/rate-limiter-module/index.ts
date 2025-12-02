@@ -4,18 +4,18 @@ import { RateLimiterRedis } from 'rate-limiter-flexible';
 import type Redis from 'ioredis';
 
 interface RateLimiterConfig {
-  maxConcurrent: number; // Max concurrent requests
-  minTime: number; // Min time between requests (ms)
-  reservoir?: number; // Initial tokens (for token bucket)
-  reservoirRefreshAmount?: number; // Tokens to add per interval
-  reservoirRefreshInterval?: number; // Interval for adding tokens (ms)
+  maxConcurrent: number;
+  minTime: number;
+  reservoir?: number;
+  reservoirRefreshAmount?: number;
+  reservoirRefreshInterval?: number;
 }
 
 interface DistributedRateLimiterConfig {
-  points: number; // Number of requests
-  duration: number; // Per duration (seconds)
-  blockDuration?: number; // Block duration if exceeded (seconds)
-  keyPrefix?: string; // Redis key prefix
+  points: number;
+  duration: number;
+  blockDuration?: number;
+  keyPrefix?: string;
 }
 
 /**
@@ -106,7 +106,6 @@ export class RateLimiterService implements OnModuleDestroy {
     const limiter = this.distributedLimiters.get(limiterName);
 
     if (!limiter) {
-      // No distributed limiter, allow request
       return true;
     }
 
@@ -114,7 +113,6 @@ export class RateLimiterService implements OnModuleDestroy {
       await limiter.consume(key);
       return true;
     } catch (error) {
-      // Rate limit exceeded
       this.logger.warn(`Rate limit exceeded for ${limiterName}:${key}`);
       return false;
     }
@@ -128,18 +126,40 @@ export class RateLimiterService implements OnModuleDestroy {
     limiterName: string,
     fn: () => Promise<T>,
     config?: Partial<RateLimiterConfig>,
+    retryCount: number = 0,
+    maxRetries: number = 3,
   ): Promise<T> {
-    // First check distributed limit
     if (this.useDistributed && this.distributedLimiters.has(limiterName)) {
       const allowed = await this.tryConsume(limiterName);
       if (!allowed) {
-        // Wait and retry (simple backoff)
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        return this.scheduleWithDistributedLimit(limiterName, fn, config);
+        if (retryCount >= maxRetries) {
+          throw new Error(
+            `Rate limit exceeded for ${limiterName} after ${maxRetries} retries`,
+          );
+        }
+
+        const baseDelay = 1000;
+        const maxDelay = 10000;
+        const delay = Math.min(baseDelay * Math.pow(1.5, retryCount), maxDelay);
+        const jitter = delay * (0.8 + Math.random() * 0.4);
+
+        if (retryCount % 5 === 0) {
+          this.logger.warn(
+            `Rate limit exceeded for ${limiterName}, retry ${retryCount + 1}/${maxRetries} after ${Math.round(jitter)}ms`,
+          );
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, jitter));
+        return this.scheduleWithDistributedLimit(
+          limiterName,
+          fn,
+          config,
+          retryCount + 1,
+          maxRetries,
+        );
       }
     }
 
-    // Then use local limiter for concurrency control
     const limiter = this.getLimiter(limiterName, config);
     return limiter.schedule(() => fn());
   }
@@ -149,7 +169,7 @@ export class RateLimiterService implements OnModuleDestroy {
   ): Bottleneck {
     const defaultConfig: RateLimiterConfig = {
       maxConcurrent: 5,
-      minTime: 200, // 5 req/sec default
+      minTime: 200,
       ...config,
     };
 
@@ -159,13 +179,12 @@ export class RateLimiterService implements OnModuleDestroy {
       reservoir: defaultConfig.reservoir,
       reservoirRefreshAmount: defaultConfig.reservoirRefreshAmount,
       reservoirRefreshInterval: defaultConfig.reservoirRefreshInterval,
-      // Enable retries and exponential backoff
-      retryLimit: 0, // We handle retries at higher level
-      // Track metrics
+
+      retryLimit: 0,
+
       trackDoneStatus: true,
     });
 
-    // Log limiter events
     limiter.on('queued', () => {
       this.logger.debug(`Request queued for ${name}`);
     });
@@ -255,9 +274,6 @@ export class RateLimiterService implements OnModuleDestroy {
     );
   }
 
-  /**
-   * Stop and disconnect all limiters (cleanup)
-   */
   async disconnectAll(): Promise<void> {
     const promises: Promise<void>[] = [];
 
@@ -270,9 +286,6 @@ export class RateLimiterService implements OnModuleDestroy {
     this.limiters.clear();
   }
 
-  /**
-   * Get all limiters status
-   */
   getAllStats(): Record<string, any> {
     const stats: Record<string, any> = {};
 
@@ -287,51 +300,42 @@ export class RateLimiterService implements OnModuleDestroy {
     return stats;
   }
 
-  /**
-   * Create provider-specific rate limiters based on known limits
-   * Creates both local (concurrency) and distributed (global rate) limiters
-   */
   createProviderLimiters(): void {
-    // OpenAI rate limits (adjust based on tier)
     this.createLimiter('openai', {
       maxConcurrent: 50,
-      minTime: 20, // 50 req/sec for high tier
-      reservoir: 100, // Burst capacity
-      reservoirRefreshAmount: 50,
-      reservoirRefreshInterval: 1000, // Refill 50 tokens per second
-    });
-
-    // Distributed rate limiter for OpenAI (shared across workers)
-    if (this.useDistributed) {
-      this.createDistributedLimiter('openai', {
-        points: 50000, // 50k requests per minute (tier 5)
-        duration: 60, // per 60 seconds
-        keyPrefix: 'ratelimit:openai',
-      });
-    }
-
-    // Anthropic rate limits
-    this.createLimiter('anthropic', {
-      maxConcurrent: 50,
-      minTime: 20, // Similar to OpenAI
+      minTime: 20,
       reservoir: 100,
       reservoirRefreshAmount: 50,
       reservoirRefreshInterval: 1000,
     });
 
-    // Distributed rate limiter for Anthropic
+    if (this.useDistributed) {
+      this.createDistributedLimiter('openai', {
+        points: 50,
+        duration: 60,
+        keyPrefix: 'ratelimit:openai',
+      });
+    }
+
+    this.createLimiter('anthropic', {
+      maxConcurrent: 50,
+      minTime: 20,
+      reservoir: 100,
+      reservoirRefreshAmount: 50,
+      reservoirRefreshInterval: 1000,
+    });
+
     if (this.useDistributed) {
       this.createDistributedLimiter('anthropic', {
-        points: 50000, // 50k requests per minute
+        points: 50,
         duration: 60,
         keyPrefix: 'ratelimit:anthropic',
       });
     }
 
-    // Conservative default for unknown providers
     this.createLimiter('default', {
       maxConcurrent: 5,
-      minTime: 200, // 5 req/sec
+      minTime: 200,
     });
 
     this.logger.log(

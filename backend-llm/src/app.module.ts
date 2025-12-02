@@ -1,22 +1,17 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from './libs/nestjs-config-module/src';
-// import { HackerOneModule } from './repositories/hackerone/hackerone.module';
-// import { HackerOneController } from './api/hackerone.controller';
+
 import { HttpModule } from '@nestjs/axios';
 import { AppController } from './controller/app.controller';
 import { AppService } from './app.service';
 import { LLMVisibilityModule } from './repositories/llm-visibility/llm-visibility.module';
-// import { WappalyzerController } from './api/wappalyzer.controller';
-// import { WappalyzerModule } from './libs/wappalyzer/wappalyzer.module';
 
 @Module({
   imports: [
-    // HackerOneModule,
     ConfigModule.forRoot(),
     HttpModule,
     LLMVisibilityModule,
-    // WappalyzerModule,
     MongooseModule.forRootAsync({
       useFactory: (config: ConfigService) => ({
         uri: config.getString('BACKEND_LLM_DATABASE_URI'),
