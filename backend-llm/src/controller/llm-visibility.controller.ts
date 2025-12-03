@@ -10,13 +10,18 @@ import {
   Logger,
 } from '@nestjs/common';
 import { LLMVisibilityService } from '../repositories/llm-visibility/services/llm-visibility.service';
-import type { IRun as IRunResponse } from '../repositories/llm-visibility/types/llm-visibility.interfaces';
+import type {
+  IRun,
+  IRun as IRunResponse,
+} from '../repositories/llm-visibility/types/llm-visibility.interfaces';
 import { RedisService } from '../libs/redis-module/redis.service';
 import { RateLimiterService } from '../libs/rate-limiter-module';
 import {
   CreateRunRequest,
+  CreateRunResponse,
+  RunChatResponse,
   RunSummaryResponse,
-} from 'src/repositories/llm-visibility/types/llm-visibility.dto';
+} from '../repositories/llm-visibility/types/llm-visibility.dto';
 
 @Controller()
 export class LLMVisibilityController {
@@ -29,7 +34,7 @@ export class LLMVisibilityController {
   ) {}
 
   @Post('runs')
-  async createRun(@Body() dto: CreateRunRequest): Promise<any> {
+  async createRun(@Body() dto: CreateRunRequest): Promise<CreateRunResponse> {
     this.logger.log(
       `Creating run with ${dto.prompts?.length || 0} prompts, ${dto.brands?.length || 0} brands, ${dto.models?.length || 0} models`,
     );
@@ -137,7 +142,7 @@ export class LLMVisibilityController {
   }
 
   @Get('runs/:id/chat')
-  async getRunChat(@Param('id') id: string): Promise<any> {
+  async getRunChat(@Param('id') id: string): Promise<RunChatResponse> {
     this.logger.debug(`Fetching chat view for run: ${id}`);
 
     try {
@@ -163,7 +168,7 @@ export class LLMVisibilityController {
   }
 
   @Get('gethealth')
-  async getHealth(): Promise<any> {
+  async getHealth() {
     this.logger.debug('Health check requested');
 
     const redisInfo = await this.redisService.getInfo();

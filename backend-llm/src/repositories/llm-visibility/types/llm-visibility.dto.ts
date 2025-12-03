@@ -37,6 +37,11 @@ export interface CreateRunRequest {
   };
 }
 
+export interface CreateRunResponse {
+  run: IRun;
+  message: string;
+}
+
 export interface RunChatResponse {
   run: IRun;
   conversations: Array<{
