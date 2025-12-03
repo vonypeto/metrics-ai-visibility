@@ -15,7 +15,7 @@ Edit `.env` and add at least one API key:
 
 ```env
 # Required
-BACKEND_LLM_DATABASE_URI=mongodb+srv://interview:2GtHT6P1xMMYsUJR@cluster0.tfhbu.mongodb.net/dbai
+BACKEND_LLM_DATABASE_URI=mongodb+srv://<username>:<password>@URI.COM
 PORT=3000
 
 # At least one is required
